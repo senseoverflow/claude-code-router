@@ -6,20 +6,45 @@ type UpstreamRequest = {
   url: string;
 };
 
+type TokenFloorMatcher = {
+  hostname: string;
+  modelPattern: RegExp;
+  pathPattern: RegExp;
+};
+
+const TOKEN_FLOOR_MATCHERS: TokenFloorMatcher[] = [
+  {
+    hostname: "openrouter.ai",
+    modelPattern: /^meta\/muse-spark(?:-|$)/i,
+    pathPattern: /^\/api\/v1\/(?:messages|responses|chat\/completions)\/?$/
+  },
+  {
+    hostname: "opencode.ai",
+    modelPattern: /^muse-spark(?:-|$)/i,
+    pathPattern: /^\/zen\/go\/v1(?:\/|$)/
+  }
+];
+
 export function applyMetaTokenFloor<T extends UpstreamRequest>(request: T): T {
   if ((request.bodyEncoding ?? "json") !== "json" || !isRecord(request.body)) {
     return request;
   }
   const body = request.body;
-  if (typeof body.model !== "string" || !/^meta\/muse-spark(?:-|$)/i.test(body.model)) {
+  if (typeof body.model !== "string") {
     return request;
   }
+  let url: URL;
   try {
-    const url = new URL(request.url);
-    if (url.protocol !== "https:" || url.hostname !== "openrouter.ai" || !/^\/api\/v1\/(?:messages|responses|chat\/completions)\/?$/.test(url.pathname)) {
-      return request;
-    }
+    url = new URL(request.url);
   } catch {
+    return request;
+  }
+  if (url.protocol !== "https:") {
+    return request;
+  }
+  const matched = TOKEN_FLOOR_MATCHERS.some((matcher) =>
+    matcher.hostname === url.hostname && matcher.pathPattern.test(url.pathname) && matcher.modelPattern.test(body.model as string));
+  if (!matched) {
     return request;
   }
   let next = body;
