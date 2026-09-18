@@ -766,16 +766,39 @@ async function probeProtocolConnectivity(
       apiKey,
       { model }
     );
-    const result = await requestJson(request.url, request.init);
-    const message = readResponseMessage(result);
-    const supported = isProtocolSupported(result.status, message, protocol);
+
+    const maxAttempts = 3;
+    let result: FetchJsonResult | undefined;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const attemptStartedAtMs = Date.now();
+      result = await requestJson(request.url, request.init);
+      const attemptDurationMs = Date.now() - attemptStartedAtMs;
+      const isNetworkFailure = result.status === undefined;
+      logProbeAttempt({
+        attempt,
+        durationMs: attemptDurationMs,
+        endpoint: candidate.endpoint,
+        maxAttempts,
+        model,
+        protocol,
+        status: result.status,
+        willRetry: isNetworkFailure && attempt < maxAttempts
+      });
+      if (!isNetworkFailure || attempt === maxAttempts) {
+        break;
+      }
+      await delay(probeRetryDelayMs * attempt);
+    }
+
+    const message = readResponseMessage(result!);
+    const supported = isProtocolSupported(result!.status, message, protocol);
     const probeResult = {
       baseUrl: candidate.baseUrl,
-      ...(result.detectedProvider ? { detectedProvider: result.detectedProvider } : {}),
+      ...(result!.detectedProvider ? { detectedProvider: result!.detectedProvider } : {}),
       endpoint: candidate.endpoint,
       message,
       protocol,
-      status: result.status,
+      status: result!.status,
       supported
     };
 
@@ -791,6 +814,29 @@ async function probeProtocolConnectivity(
     protocol,
     supported: false
   };
+}
+
+const probeRetryDelayMs = 400;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function logProbeAttempt(info: {
+  attempt: number;
+  durationMs: number;
+  endpoint: string;
+  maxAttempts: number;
+  model: string;
+  protocol: GatewayProviderCapabilityProtocol;
+  status: number | undefined;
+  willRetry: boolean;
+}): void {
+  const outcome = info.status === undefined ? "network-error" : info.status >= 200 && info.status < 300 ? "ok" : `http-${info.status}`;
+  const retrySuffix = info.willRetry ? " (retrying)" : "";
+  console.log(
+    `[model-probe] model=${info.model} protocol=${info.protocol} endpoint=${info.endpoint} attempt=${info.attempt}/${info.maxAttempts} outcome=${outcome} durationMs=${info.durationMs}${retrySuffix}`
+  );
 }
 
 function requestForProtocol(protocol: GatewayProviderCapabilityProtocol, model: string, apiKey: string | undefined): RequestInit {
