@@ -91,7 +91,7 @@ const protocolOrder: GatewayProviderCapabilityProtocol[] = [
 
 const modelSourceOrder: ModelSource[] = ["openai", "anthropic", "gemini"];
 const probeTimeoutMs = 10000;
-const probeOutputTokenLimit = 1;
+const probeOutputTokenLimit = 16;
 const protocolProbeCacheMs = 60 * 1000;
 const connectivityProbeCacheMs = 15 * 1000;
 const failedProbeCacheMs = 10 * 1000;
