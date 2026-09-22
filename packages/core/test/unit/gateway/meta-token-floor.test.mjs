@@ -35,3 +35,34 @@ test("#1781 token floor is scoped to Muse Spark on official OpenRouter JSON endp
     assert.deepEqual(transform(input).body, input.body);
   }
 });
+
+test("Muse Spark token floor applies to opencode.ai zen/go requests without mutation", () => {
+  for (const field of ["max_tokens", "max_completion_tokens", "max_output_tokens"]) {
+    for (const value of [1, 15, 16, 128]) {
+      const request = {
+        url: "https://opencode.ai/zen/go/v1/chat/completions", headers: {},
+        body: { model: "muse-spark-1.3-contributor", [field]: value }
+      };
+      const result = transform(request);
+      assert.equal(result.body[field], Math.max(16, value));
+      assert.equal(request.body[field], value);
+    }
+  }
+});
+
+test("token floor is scoped to Muse Spark on official opencode.ai zen/go JSON endpoints", () => {
+  const body = { model: "muse-spark-1.3-contributor", max_tokens: 1 };
+  const request = { url: "https://opencode.ai/zen/go/v1/messages", headers: {}, body };
+  for (const input of [
+    { ...request, url: "https://example.test/zen/go/v1/messages" },
+    { ...request, url: "https://opencode.ai.evil.test/zen/go/v1/messages" },
+    { ...request, url: "https://opencode.ai/zen/v1/messages" },
+    { ...request, body: { ...body, model: "deepseek-v4-flash" } },
+    { ...request, body: { ...body, model: "meta/muse-spark-1.3-contributor" } },
+    { ...request, bodyEncoding: "text", body: JSON.stringify(body) },
+    { ...request, body: { model: body.model } },
+    { ...request, body: { ...body, max_tokens: -1 } }
+  ]) {
+    assert.deepEqual(transform(input).body, input.body);
+  }
+});

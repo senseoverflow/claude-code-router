@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { applyCopilotReasoningTokenParam } from "@ccr/core/gateway/core-runtime/copilot-reasoning-token-param";
 import { applyMetaTokenFloor } from "@ccr/core/gateway/core-runtime/meta-token-floor";
 import { applyResponsesSessionAffinity, inboundMetadataUserId, resolveResponsesSessionKey } from "@ccr/core/gateway/core-runtime/responses-session-affinity";
 import type { ResponsesSessionAffinityInput } from "@ccr/core/gateway/core-runtime/responses-session-affinity";
@@ -281,7 +282,7 @@ export function createGatewayPlugin() {
         }
         return {
           ok: true as const,
-          value: applyMetaTokenFloor(upstreamRequest)
+          value: applyCopilotReasoningTokenParam(applyMetaTokenFloor(upstreamRequest))
         };
       }
     }, {

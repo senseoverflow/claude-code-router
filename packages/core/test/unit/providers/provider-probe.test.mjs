@@ -106,6 +106,62 @@ test("NVIDIA probe never requests or persists the Responses protocol", async (t)
   );
 });
 
+test("model connectivity probes request enough output tokens to clear provider-side minimums", async (t) => {
+  const previousFetch = globalThis.fetch;
+  const bodies = [];
+
+  globalThis.fetch = async (_input, init) => {
+    bodies.push(JSON.parse(String(init.body)));
+    return new Response(JSON.stringify({ error: { message: "Unauthorized" } }), {
+      headers: { "content-type": "application/json" },
+      status: 401
+    });
+  };
+  t.after(() => {
+    globalThis.fetch = previousFetch;
+  });
+
+  await checkGatewayProviderConnectivity({
+    candidates: [{
+      baseUrl: "https://opencode.ai/zen/go/v1",
+      name: "OpenCode Go",
+      protocols: ["openai_responses"],
+      source: "preset"
+    }],
+    forceRefresh: true,
+    models: ["muse-spark-1.3-contributor"],
+    protocols: ["openai_responses"]
+  });
+  await checkGatewayProviderConnectivity({
+    candidates: [{
+      baseUrl: "https://example.test/v1",
+      name: "Example",
+      protocols: ["openai_chat_completions"],
+      source: "preset"
+    }],
+    forceRefresh: true,
+    models: ["example-model"],
+    protocols: ["openai_chat_completions"]
+  });
+  await checkGatewayProviderConnectivity({
+    candidates: [{
+      baseUrl: "https://example.test",
+      name: "Example",
+      protocols: ["anthropic_messages"],
+      source: "preset"
+    }],
+    forceRefresh: true,
+    models: ["example-model"],
+    protocols: ["anthropic_messages"]
+  });
+
+  assert.ok(bodies.length >= 3);
+  for (const body of bodies) {
+    const limit = body.max_output_tokens ?? body.max_tokens;
+    assert.ok(typeof limit === "number" && limit >= 16, `probe token limit ${limit} is below known provider minimums`);
+  }
+});
+
 test("protocol support probe treats HTTP 400 validation as protocol support", () => {
   const message = "HTTP 400: * GenerateContentRequest.contents: contents is not specified";
 
