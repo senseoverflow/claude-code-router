@@ -188,6 +188,10 @@ function macOpenEnvArgs(env: Record<string, string>): string[] {
 }
 
 function claudeElectronUserDataDir(settingsDir: string, profile: ProfileConfig): string {
+  const userDataDirOverride = process.env.CCR_CLAUDE_APP_USER_DATA_DIR?.trim();
+  if (userDataDirOverride) {
+    return userDataDirOverride;
+  }
   return path.join(
     settingsDir,
     ".claude-code-router",
